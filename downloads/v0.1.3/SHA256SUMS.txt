@@ -1,0 +1,3 @@
+d63acfcd5a72848df3cc2f7fd4ef5e4f457a6c1c361bf8173116277caad62c34  fit-explorer-0.1.3-source.zip
+0c019653ad705261d98ec9b161d60adc682589fb2053ee9533cad2140f185306  fit-explorer-0.1.3-offline.zip
+c43bd7812729ec0138cf9a9baa290677d53d8935d1e04e2b4b544eff89eb34d1  fit_explorer-0.1.3-py3-none-any.whl

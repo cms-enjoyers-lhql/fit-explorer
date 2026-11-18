@@ -8,7 +8,7 @@ const output=path.resolve(option('--output')??path.join(root,'qa','browser-'+Dat
 await mkdir(output,{recursive:true});
 const common=args.filter((_,i)=>args[i]!=='--output'&&args[i-1]!=='--output');
 if(!common.includes('--url'))common.push('--url',pathToFileURL(path.join(root,'dist/fit-explorer.html')).href);
-for(const [file,folder]of [['generic_browser.mjs','generic'],['labels_browser.mjs','labels'],['drop_browser.mjs','drop']]){
+for(const [file,folder]of [['generic_browser.mjs','generic'],['labels_browser.mjs','labels'],['drop_browser.mjs','drop'],['memory_lifecycle.mjs','memory']]){
  const code=await new Promise((resolve,reject)=>{const child=spawn(process.execPath,[path.join(root,'tests',file),...common,'--output',path.join(output,folder)],{cwd:root,stdio:'inherit'});child.on('error',reject);child.on('exit',resolve)});
  if(code!==0){process.exitCode=code??1;break}
 }

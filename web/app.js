@@ -100,6 +100,7 @@ export function mount(container,input,options={}){
     <section class="guide-panel" hidden aria-label="Data guide"><div class="guide-actions"><button class="button" data-guide-back>← Back to fit</button></div>${guideHTML()}</section>
     <footer class="timeline"><button class="button primary" data-play>▶ Play 5 s</button><input data-time aria-label="Animation time" type="range" min="0" max="5" step="0.01" value="5"><span class="time">5.00 / 5 s</span></footer></main>`;
   const root=container.querySelector('.fit-app'),host=root.querySelector('.scene'),sceneWrap=root.querySelector('.scene-wrap');
+  const uiEvents=new AbortController(),uiEventOptions={signal:uiEvents.signal};
   let renderer;
   try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setClearColor(0xffffff,0);renderer.outputColorSpace=THREE.SRGBColorSpace;host.appendChild(renderer.domElement)}catch(error){host.innerHTML='<div class="error-panel">Unable to create the WebGL scene.<br>Enable browser hardware acceleration.</div>';throw error}
   const scene=new THREE.Scene();
@@ -318,22 +319,29 @@ export function mount(container,input,options={}){
       const region=selectionRegion(state.slice,pkg.shape),body=e.target.closest('[data-window-body]');
       drag={pointerId:e.pointerId,start:point.index,region,mode:bound??(body?'move':'select')};
       svg.dataset.dragging=drag.mode==='lo'||drag.mode==='hi'?'resize':'move';svg.setPointerCapture(e.pointerId);e.preventDefault();
-    });
-    svg.addEventListener('pointermove',move);
+    },uiEventOptions);
+    svg.addEventListener('pointermove',move,uiEventOptions);
     const finish=e=>{if(!drag||e.pointerId!==drag.pointerId)return;if(e.type==='pointerup')move(e);drag=null;delete svg.dataset.dragging;if(svg.hasPointerCapture(e.pointerId))svg.releasePointerCapture(e.pointerId)};
-    svg.addEventListener('pointerup',finish);svg.addEventListener('pointercancel',finish);svg.addEventListener('lostpointercapture',finish);
+    svg.addEventListener('pointerup',finish,uiEventOptions);svg.addEventListener('pointercancel',finish,uiEventOptions);svg.addEventListener('lostpointercapture',finish,uiEventOptions);
     svg.addEventListener('keydown',e=>{
       const target=e.target.closest('[data-window-bound]');if(!target||!['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Home','End'].includes(e.key))return;
       e.preventDefault();const bound=target.dataset.windowBound,range=selectionRegion(state.slice,pkg.shape)[axis],index=range[bound==='lo'?0:1],step=e.shiftKey?5:1;
       changeWindow(axis,bound,e.key==='Home'?0:e.key==='End'?n:index+(['ArrowLeft','ArrowDown'].includes(e.key)?-step:step));
       // Redrawing the SVG replaces its children; keep keyboard focus on this handle.
       svg.querySelector(`[data-window-bound="${bound}"]`)?.focus();
-    });
+    },uiEventOptions);
   }
-  root.addEventListener('click',click);root.addEventListener('input',inputEvent);root.addEventListener('change',change);controls.addEventListener('start',()=>{state.playing=false;ui()});
+  root.addEventListener('click',click,uiEventOptions);root.addEventListener('input',inputEvent,uiEventOptions);root.addEventListener('change',change,uiEventOptions);const controlsStart=()=>{state.playing=false;ui()};controls.addEventListener('start',controlsStart);
   function tick(now){if(destroyed)return;if(state.playing&&state.view!=='guide'){const dt=lastTime===null?0:Math.min((now-lastTime)/1000,.1);state.time=clamp(state.time+dt,0,5);if(state.time>=5)state.playing=false;setCamera('iso',true);meshDirty=projectionDirty=true;ui()}lastTime=now;render();animation=requestAnimationFrame(tick)}
   const unbindGuide=bindGuide(root.querySelector('.guide-panel'),{onChooseFile:()=>root.querySelector('#load-fit').click()});
-  const api={getState,setState,setTime,render,getProjectionData:()=>projectionData,getLabelVisibility:options=>depthLabels.diagnostics(labels,options),measureLabelDepth:options=>depthLabels.measureLabelDepth(labels,options),package:pkg,dispose(){destroyed=true;unbindGuide();cancelAnimationFrame(animation);ro.disconnect();controls.dispose();depthLabels.dispose();scene.traverse(obj=>{obj.geometry?.dispose();if(Array.isArray(obj.material))obj.material.forEach(m=>m.dispose());else obj.material?.dispose()});renderer.dispose();container.replaceChildren()}};
+  function disposePhysicalLookup(){
+    // Three r182 shares DFG_LUT across physical materials, but renderer.dispose()
+    // leaves its per-context texture listeners alive. Dispose that exact lookup
+    // before the material properties disappear; another viewer reuploads it.
+    const lookup=renderer.properties.get(meshMaterial).uniforms?.dfgLUT?.value??renderer.properties.get(base.material).uniforms?.dfgLUT?.value;
+    lookup?.dispose();
+  }
+  const api={getState,setState,setTime,render,getProjectionData:()=>projectionData,getLabelVisibility:options=>depthLabels.diagnostics(labels,options),measureLabelDepth:options=>depthLabels.measureLabelDepth(labels,options),package:pkg,dispose(){if(destroyed)return;destroyed=true;uiEvents.abort();unbindGuide();cancelAnimationFrame(animation);ro.disconnect();controls.removeEventListener('start',controlsStart);controls.dispose();depthLabels.dispose();disposePhysicalLookup();scene.traverse(obj=>{obj.geometry?.dispose();if(Array.isArray(obj.material))obj.material.forEach(m=>m.dispose());else obj.material?.dispose()});renderer.dispose();renderer.forceContextLoss();renderer.domElement.remove();container.replaceChildren()}};
   if(!['3d','projections','guide'].includes(state.view))throw Error('Unknown view');setCamera('iso',true);updateWindow();ui();resize();animation=requestAnimationFrame(tick);return api;
 }
 

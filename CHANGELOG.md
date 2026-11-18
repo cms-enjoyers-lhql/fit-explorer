@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3
+
+- Release shared axis-sprite GPU geometry when replacing or closing a fit viewer.
+- Prevent graphics disposal listeners from retaining previous renderer instances.
+- Add repeated ROOT-loading regression checks for viewer and GPU resource cleanup.
+- Preserve fitted data, component yields, covariance and projection mathematics.
+
 ## 0.1.2
 
 - Render axis text as depth-tested glyphs, preserving foreground labels during orbit.

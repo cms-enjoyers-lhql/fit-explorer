@@ -1,6 +1,9 @@
 // Camera-facing glyphs use the fitted surface's depth, independently of decoration.
 export function createDepthLabels({THREE,renderer,camera,mesh,axisGeometry,host,exportMode}){
   const scene=new THREE.Scene(),depthScene=new THREE.Scene(),probeScene=new THREE.Scene(),cache=new Map();
+  // Three's default Sprite geometry is module-global. Give this viewer its own
+  // geometry so renderer disposal cannot leave callbacks on that shared root.
+  const glyphGeometry=new THREE.Sprite().geometry.clone();
   const depthMaterial=new THREE.MeshDepthMaterial({side:THREE.DoubleSide});depthMaterial.colorWrite=false;
   const depthMesh=new THREE.Mesh(mesh.geometry,depthMaterial);depthMesh.frustumCulled=false;depthMesh.matrixAutoUpdate=false;depthScene.add(depthMesh);
   const glyphs=new Map();let target=null,width=0,height=0;
@@ -21,7 +24,7 @@ export function createDepthLabels({THREE,renderer,camera,mesh,axisGeometry,host,
     }
     asset.users++;
     const material=new THREE.SpriteMaterial({map:asset.texture,transparent:true,depthTest:true,depthWrite:false,sizeAttenuation:false,alphaTest:.01});material.toneMapped=false;
-    const sprite=new THREE.Sprite(material);sprite.frustumCulled=false;scene.add(sprite);
+    const sprite=new THREE.Sprite(material);sprite.geometry=glyphGeometry;sprite.frustumCulled=false;scene.add(sprite);
     glyph={key,asset,material,sprite};glyphs.set(label,glyph);return glyph;
   }
   function describe(label,glyph,box){
@@ -73,7 +76,7 @@ export function createDepthLabels({THREE,renderer,camera,mesh,axisGeometry,host,
     const x=clamp(Math.floor(left*ratioX)-2,0,width),y=clamp(Math.floor((box.height-bottom)*ratioY)-2,0,height);
     const w=Math.max(0,Math.min(width-x,Math.ceil((right-left)*ratioX)+4)),h=Math.max(0,Math.min(height-y,Math.ceil((bottom-top)*ratioY)+4));
     const saved={target:renderer.getRenderTarget(),color:renderer.getClearColor(new THREE.Color()),alpha:renderer.getClearAlpha(),auto:renderer.autoClear,viewport:renderer.getViewport(new THREE.Vector4()),scissor:renderer.getScissor(new THREE.Vector4()),scissorTest:renderer.getScissorTest()};
-    const probe=new THREE.Sprite(glyph.material);probe.position.copy(glyph.sprite.position);probe.scale.copy(glyph.sprite.scale);probe.frustumCulled=false;probeScene.add(probe);
+    const probe=new THREE.Sprite(glyph.material);probe.geometry=glyphGeometry;probe.position.copy(glyph.sprite.position);probe.scale.copy(glyph.sprite.scale);probe.frustumCulled=false;probeScene.add(probe);
     const pixels=new Uint8Array(w*h*4);
     const count=withDepth=>{renderer.setRenderTarget(target);renderer.setScissorTest(false);renderer.setClearColor(0x000000,0);renderer.autoClear=false;renderer.clear(true,true,true);if(withDepth)renderer.render(depthScene,camera);renderer.render(probeScene,camera);if(!w||!h)return 0;renderer.readRenderTargetPixels(target,x,y,w,h,pixels);let n=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>2)n++;return n};
     try{row.baseline_pixels=count(false);row.visible_pixels=count(true);row.visible_fraction=row.baseline_pixels?row.visible_pixels/row.baseline_pixels:null;row.visibility_measured=true;row.visible=row.visible_pixels>0;row.occluded=row.baseline_pixels>row.visible_pixels;row.partially_occluded=row.visible_pixels>0&&row.occluded;return row}
@@ -86,5 +89,5 @@ export function createDepthLabels({THREE,renderer,camera,mesh,axisGeometry,host,
     const glyph=glyphs.get(label),previous=glyph.sprite.position.clone();
     try{glyph.sprite.position.fromArray(position);return measure(label,glyph)}finally{glyph.sprite.position.copy(previous)}
   }
-  return {update,render,diagnostics,measureLabelDepth,release,dispose(){for(const label of [...glyphs.keys()])release(label);depthMaterial.dispose();target?.dispose()}};
+  return {update,render,diagnostics,measureLabelDepth,release,dispose(){for(const label of [...glyphs.keys()])release(label);glyphGeometry.dispose();depthMaterial.dispose();target?.dispose()}};
 }
