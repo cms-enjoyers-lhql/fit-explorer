@@ -1,0 +1,8 @@
+JSROOT embedded inflate implementation notice
+
+Copyright (C) 1999 Masanao Izumo <iz@onicos.co.jp>
+Version: 1.0.0.1
+LastModified: Dec 25 1999
+Original: http://www.onicos.com/staff/iz/amuse/javascript/expert/inflate.txt
+
+Retained from the bundled JSROOT io.mjs source alongside JSROOT's license.
